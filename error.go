@@ -2,9 +2,8 @@ package retryable
 
 import "fmt"
 
-// MaxAttemptsReachedError is returned, unsurprisingly, when we've attempted to upload
-// data into the Digital Twin (ie: DexoryView) too many times, and none have been
-// successful
+// MaxAttemptsReachedError is returned, unsurprisingly, when we've attempted to make
+// a request too many times, and none have been successful
 type MaxAttemptsReachedError struct {
 	c int
 }
