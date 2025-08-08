@@ -80,7 +80,7 @@ func (h HttpClient) DoWithContext(ctx context.Context, req *http.Request) (*http
 		}
 
 		start := time.Now()
-		resp, err := h.Client.Do(req)
+		resp, err := h.Do(req)
 		requestDuration := time.Since(start)
 
 		if err != nil {
