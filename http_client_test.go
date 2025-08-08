@@ -1,0 +1,119 @@
+package retryable_test
+
+import (
+	"context"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+	"time"
+
+	"github.com/botsandus/retryable"
+)
+
+func TestNew(t *testing.T) {
+	c := retryable.New()
+	if c == nil {
+		t.Fatal("value must not be nil")
+	}
+}
+
+func TestHttpClient_DoWithContext(t *testing.T) {
+	for _, test := range []struct {
+		name           string
+		resp           int
+		expectAttempts int
+		expectDuration bool
+		expectError    bool
+	}{
+		{"Redirect loop fails early", http.StatusTemporaryRedirect, 1, false, true},
+		{"Rate limited calls will wait", http.StatusTooManyRequests, 2, false, true},
+		{"404s fail early", http.StatusNotFound, 1, false, true},
+		{"500s keep retrying", http.StatusInternalServerError, 2, false, true},
+		{"200s return immediately with timing", http.StatusOK, 1, true, false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Add("Retry-After", "1")    // only used with status 429
+				w.Header().Add("Location", "/a/a/a/") // only used with status 307
+				w.WriteHeader(test.resp)
+			}))
+			defer ts.Close()
+
+			req, err := http.NewRequest(http.MethodGet, ts.URL, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			c := retryable.New()
+			c.MaxInterval = time.Millisecond
+			c.MaxRetries = 1
+
+			ctx := retryable.NewContext()
+
+			_, err = c.DoWithContext(ctx, req)
+			if test.expectError == (err == nil) {
+				t.Errorf("expected: %v, received %#v", test.expectError, err)
+			}
+
+			t.Run("attempts count", func(t *testing.T) {
+				attempts, ok := retryable.NumberOfAttemptsFromContext(ctx)
+				if !ok {
+					t.Fatal("expected `attempts` in the context")
+				}
+
+				if test.expectAttempts != attempts {
+					t.Errorf("expected %d, received %d", test.expectAttempts, attempts)
+				}
+			})
+
+			t.Run("successful duration", func(t *testing.T) {
+				dur, ok := retryable.SuccessfulRequestDurationFromContext(ctx)
+
+				if !ok {
+					t.Fatal("expected `duration` in the context")
+				}
+
+				if test.expectDuration == (dur.Nanoseconds() == 0) {
+					t.Errorf("expectedDuration is %v, yet duration was %d ns", test.expectDuration, dur.Milliseconds())
+				}
+			})
+
+		})
+	}
+}
+
+// TestHttpClient_DoWithContext_NakedContexts tests the HttpClient doesn't fall over
+// if we use a naked context.Context from the standard library, in scenarios where
+// we may not care about metadata for metrics
+func TestHttpClient_DoWithContext_NakedContexts(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Add("Retry-After", "1")    // only used with status 429
+		w.Header().Add("Location", "/a/a/a/") // only used with status 307
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer ts.Close()
+
+	req, err := http.NewRequest(http.MethodGet, ts.URL, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	c := retryable.New()
+
+	ctx := context.Background()
+
+	_, err = c.DoWithContext(ctx, req)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, ok := retryable.NumberOfAttemptsFromContext(ctx)
+	if ok {
+		t.Error("no attempts should have been returned")
+	}
+
+	_, ok = retryable.SuccessfulRequestDurationFromContext(ctx)
+	if ok {
+		t.Error("no duration should have been returned")
+	}
+}
