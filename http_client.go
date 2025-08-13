@@ -22,6 +22,12 @@ var (
 	// Thanks Rob Pike
 	redirectErrorString      = regexp.MustCompile("stopped after 10 redirects")
 	untrustedCertErrorString = regexp.MustCompile("certificate is not trusted")
+
+	// default429RetrySeconds is used in the case of 429s that don't set the Retry-After
+	// header, which only _may_ be included according to rfc6585.
+	//
+	// To understand the semantics of the word _may_, please see rfc2119
+	default429RetrySeconds = 1
 )
 
 // An HttpClient wraps the default net/http client with a backoff function,
@@ -98,10 +104,17 @@ func (h HttpClient) DoWithContext(ctx context.Context, req *http.Request) (*http
 		// If we are being rate limited, return a RetryAfter to specify how long to wait.
 		// This will also reset the backoff policy.
 		if resp.StatusCode == 429 {
-			seconds, err := strconv.ParseInt(resp.Header.Get("Retry-After"), 10, 64)
-			if err == nil {
-				return nil, backoff.RetryAfter(int(seconds))
+			ra := resp.Header.Get("Retry-After")
+			if ra == "" {
+				return nil, backoff.RetryAfter(default429RetrySeconds)
 			}
+
+			seconds, err := strconv.ParseInt(ra, 10, 64)
+			if err != nil {
+				return nil, err
+			}
+
+			return nil, backoff.RetryAfter(int(seconds))
 		}
 
 		// Treat any non 429 client error as a permanent error

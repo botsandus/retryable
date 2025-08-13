@@ -82,6 +82,32 @@ func TestHttpClient_DoWithContext(t *testing.T) {
 	}
 }
 
+func TestHttpClient_DoWithContext_No429ReryAfter(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusTooManyRequests)
+	}))
+	defer ts.Close()
+
+	req, err := http.NewRequest(http.MethodGet, ts.URL, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	c := retryable.New()
+
+	ctx := context.Background()
+
+	_, err = c.DoWithContext(ctx, req)
+	if err == nil {
+		t.Error("request should have failed")
+	}
+
+	_, ok := retryable.NumberOfAttemptsFromContext(ctx)
+	if ok {
+		t.Error("no attempts should have been returned")
+	}
+}
+
 // TestHttpClient_DoWithContext_NakedContexts tests the HttpClient doesn't fall over
 // if we use a naked context.Context from the standard library, in scenarios where
 // we may not care about metadata for metrics
