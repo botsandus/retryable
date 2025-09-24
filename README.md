@@ -49,3 +49,16 @@ func main() {
 
 }
 ```
+
+## Configuration
+
+The client will initialise with some sensible defaults which you can find [here](https://github.com/botsandus/retryable/blob/main/http_client.go) as part of the `HttpClient`.
+
+You can override these like so:
+
+```
+ c := retryable.New()
+ c.MaxRetries = 99                   // Will try a total of 100 times.
+ c.MaxInterval = 5 time.Minute       // Intervals between retries shouldn't exceed 5 minutes.
+ c.MaxElapsedTime = 10 * time.Minute // Stops retrying completely after 10 minutes.
+```

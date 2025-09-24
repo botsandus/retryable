@@ -35,16 +35,18 @@ var (
 type HttpClient struct {
 	*http.Client
 
-	MaxRetries  int
-	MaxInterval time.Duration
+	MaxRetries     int
+	MaxInterval    time.Duration
+	MaxElapsedTime time.Duration
 }
 
 // New returns an HttpClient with some retry logic attached
 func New() *HttpClient {
 	return &HttpClient{
-		MaxRetries:  9, // For a total of 10 calls, by default
-		MaxInterval: time.Second * 30,
-		Client:      http.DefaultClient,
+		MaxRetries:     9, // For a total of 10 calls, by default
+		MaxInterval:    time.Second * 30,
+		MaxElapsedTime: 0, // Never gonna give you up
+		Client:         http.DefaultClient,
 	}
 }
 
@@ -135,5 +137,5 @@ func (h HttpClient) DoWithContext(ctx context.Context, req *http.Request) (*http
 		return resp, nil
 	}
 
-	return backoff.Retry(ctx, operation, backoff.WithBackOff(bo))
+	return backoff.Retry(ctx, operation, backoff.WithBackOff(bo), backoff.WithMaxElapsedTime(h.MaxElapsedTime))
 }
