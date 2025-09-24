@@ -135,5 +135,5 @@ func (h HttpClient) DoWithContext(ctx context.Context, req *http.Request) (*http
 		return resp, nil
 	}
 
-	return backoff.Retry(ctx, operation, backoff.WithBackOff(bo))
+	return backoff.Retry(ctx, operation, backoff.WithBackOff(bo), backoff.WithMaxElapsedTime(0))
 }
