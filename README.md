@@ -62,3 +62,14 @@ You can override these like so:
  c.MaxInterval = 5 time.Minute       // Intervals between retries shouldn't exceed 5 minutes.
  c.MaxElapsedTime = 10 * time.Minute // Stops retrying completely after 10 minutes.
 ```
+
+### Retry behavior gotchas
+
+The retry behavior is controlled by two parameters:
+
+- **MaxRetries**: Controls the maximum number of retry attempts (not including the initial attempt)
+- **MaxElapsedTime**: Controls the maximum total time spent retrying
+
+If you set `MaxRetries = 0` - Retries are controlled only by **MaxElapedTime**. The client will keep retrying until **MaxElapsedTime** is exceeded.
+
+If you set `MaxElapsedTime = 0` - Retries are controlled only by **MaxRetries**. The client will keep trying until **MaxRetries** is exceeded.
