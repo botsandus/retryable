@@ -81,7 +81,10 @@ func (h HttpClient) DoWithContext(ctx context.Context, req *http.Request) (*http
 		//
 		// Note that we add `1` to the number of MaxRetries since the first
 		// attempt isn't a retry, it's a _try_
-		if metadata.requests >= h.MaxRetries+1 {
+		//
+		// MaxRetries may be 0 to override the retry logic and instead base it on MaxElapsedTime.
+		// In which case this won't apply.
+		if h.MaxRetries > 0 && metadata.requests >= h.MaxRetries+1 {
 			return nil, &backoff.PermanentError{
 				Err: MaxAttemptsReachedError{c: h.MaxRetries + 1},
 			}

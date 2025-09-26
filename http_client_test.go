@@ -143,3 +143,46 @@ func TestHttpClient_DoWithContext_NakedContexts(t *testing.T) {
 		t.Error("no duration should have been returned")
 	}
 }
+
+// TestHttpClient_DoWithContext_UseMaxElapsedTime tests that MaxRetries=0 respects MaxElapsedTime timeout
+func TestHttpClient_DoWithContext_UseMaxElapsedTime(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer ts.Close()
+
+	req, err := http.NewRequest(http.MethodGet, ts.URL, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	c := retryable.New()
+	c.MaxRetries = 0                       // Set MaxRetries to 0
+	c.MaxElapsedTime = 1 * time.Second     // Allow 1 second for retries
+	c.MaxInterval = 100 * time.Millisecond // Short intervals
+
+	ctx := retryable.NewContext()
+	start := time.Now()
+
+	_, err = c.DoWithContext(ctx, req)
+	elapsed := time.Since(start)
+
+	// Should fail due to MaxElapsedTime being exceeded
+	if err == nil {
+		t.Error("expected request to fail due to MaxElapsedTime exceeded")
+	}
+
+	// Should have taken approximately MaxElapsedTime
+	if elapsed < 800*time.Millisecond || elapsed > 1500*time.Millisecond {
+		t.Errorf("expected elapsed time around 1s, got %v", elapsed)
+	}
+
+	attempts, ok := retryable.NumberOfAttemptsFromContext(ctx)
+	if !ok {
+		t.Fatal("expected attempts in the context")
+	}
+
+	if attempts < 2 {
+		t.Errorf("expected at least 2 attempts with MaxRetries=0 and MaxElapsedTime, got %d", attempts)
+	}
+}
