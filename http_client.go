@@ -9,6 +9,7 @@ import (
 	"time"
 
 	backoff "github.com/cenkalti/backoff/v5"
+	"github.com/hashicorp/go-cleanhttp"
 )
 
 var (
@@ -33,8 +34,6 @@ var (
 // An HttpClient wraps the default net/http client with a backoff function,
 // allowing for transient failures to be retried
 type HttpClient struct {
-	*http.Client
-
 	MaxRetries     int
 	MaxInterval    time.Duration
 	MaxElapsedTime time.Duration
@@ -46,7 +45,6 @@ func New() *HttpClient {
 		MaxRetries:     9, // For a total of 10 calls, by default
 		MaxInterval:    time.Second * 30,
 		MaxElapsedTime: 0, // Never gonna give you up
-		Client:         http.DefaultClient,
 	}
 }
 
@@ -90,8 +88,9 @@ func (h HttpClient) DoWithContext(ctx context.Context, req *http.Request) (*http
 			}
 		}
 
+		println("doing")
 		start := time.Now()
-		resp, err := h.Do(req)
+		resp, err := cleanhttp.DefaultPooledClient().Do(req)
 		requestDuration := time.Since(start)
 
 		if err != nil {
