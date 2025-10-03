@@ -90,6 +90,18 @@ func (h HttpClient) DoWithContext(ctx context.Context, req *http.Request) (*http
 			}
 		}
 
+		// Set a fresh request body from the original if this is a retry.
+		// Without this the load balancer can return a 400 because of a malformed request
+		// i.e. the client doesn't send all the data the LB expects because part of the body
+		// has already been read and sent in a previous attempt and retries would only send what's remaining.
+		if metadata.requests > 1 && req.GetBody != nil {
+			body, err := req.GetBody()
+			if err != nil {
+				return nil, backoff.Permanent(err)
+			}
+			req.Body = body
+		}
+
 		start := time.Now()
 		resp, err := h.Do(req)
 		requestDuration := time.Since(start)
