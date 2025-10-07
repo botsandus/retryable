@@ -200,8 +200,15 @@ func TestHttpClient_DoWithContext_WithHomegrownRequest(t *testing.T) {
 
 		if calls == 5 {
 			buf := new(bytes.Buffer)
-			io.Copy(buf, r.Body)
-			r.Body.Close()
+			_, err := io.Copy(buf, r.Body)
+			if err != nil {
+				t.Error(err)
+			}
+
+			err = r.Body.Close()
+			if err != nil {
+				t.Error(err)
+			}
 
 			size = buf.Len()
 

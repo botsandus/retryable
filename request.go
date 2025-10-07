@@ -14,16 +14,16 @@ import (
 //
 // This is because there's a special case in `net/http` whereby a request which
 // fails part way through one attempt will only attempt to send some data when
-// retried. Somewhere in the bowels of go, the request will check for the existence
+// retried. Somewhere in the bowels of Go, the request will check for the existence
 // of a `Body` on a request and, if it's set, will read from it. If that read returns
-// an io.EOF immediately, then go will try to rewind it.
+// an io.EOF immediately, then Go will try to rewind it.
 //
 // If a request has a Body of 100mb, and that request fails 70mb into an upload,
 // the retry will only upload the last 30mb- which is probably broken.
 //
 // Note: you're probably better off providing your own `req.GetBody` function; especially
 // on large requests- this function will read your body into memory, persisting a copy
-// of it until the request finall succeedes and the copy is garbage collected.
+// of it until the request finally succeeds and the copy is garbage collected.
 func NewRequest(method, url string, body io.Reader) (*http.Request, error) {
 	buf := new(bytes.Buffer)
 
