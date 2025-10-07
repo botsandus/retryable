@@ -1,7 +1,9 @@
 package retryable_test
 
 import (
+	"bytes"
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -184,5 +186,63 @@ func TestHttpClient_DoWithContext_UseMaxElapsedTime(t *testing.T) {
 
 	if attempts < 2 {
 		t.Errorf("expected at least 2 attempts with MaxRetries=0 and MaxElapsedTime, got %d", attempts)
+	}
+}
+
+func TestHttpClient_DoWithContext_WithHomegrownRequest(t *testing.T) {
+	var (
+		size  int
+		calls int
+	)
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+
+		if calls == 5 {
+			buf := new(bytes.Buffer)
+			_, err := io.Copy(buf, r.Body)
+			if err != nil {
+				t.Error(err)
+			}
+
+			err = r.Body.Close()
+			if err != nil {
+				t.Error(err)
+			}
+
+			size = buf.Len()
+
+			w.WriteHeader(http.StatusOK)
+
+			return
+		}
+
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer ts.Close()
+
+	payload := `{"msg":"hello, world!"}`
+
+	req, err := retryable.NewRequest(http.MethodPost, ts.URL, bytes.NewReader([]byte(payload)))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	c := retryable.New()
+	c.MaxRetries = 0                      // Set MaxRetries to 0
+	c.MaxElapsedTime = 1 * time.Second    // Allow 1 second for retries
+	c.MaxInterval = 10 * time.Millisecond // Short intervals
+
+	_, err = c.DoWithContext(context.Background(), req)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if calls != 5 {
+		t.Errorf("expected 5 requests, received %d", calls)
+	}
+
+	if size != len(payload) {
+		t.Errorf("expected a payload of %d bytes, received %d bytes", len(payload), size)
 	}
 }
